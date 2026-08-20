@@ -16,12 +16,14 @@
 # limitations under the License.
 # This file is a part of the vllm-ascend project.
 #
-# NPU-native structured output bitmask application for the v1 model runner.
+# NPU-native structured output bitmask kernel, shared by the v1 and v2 model
+# runners. ``BLOCK_SIZE=8192`` is tiled with ``BLOCK_SIZE_SUB=1024`` to stay
+# within the NPU UB; a smaller ``BLOCK_SIZE`` would make the grid unstable.
 #
-# Mirrors the convention of ``vllm_ascend/worker/v2/structured_outputs.py``:
-# apply the bitmask on the NPU through a Triton kernel, with
-# ``BLOCK_SIZE=8192`` and ``BLOCK_SIZE_SUB=1024`` tiling to stay within the
-# NPU UB. Kept parallel to v2 so neither runner cross-imports the other.
+# The kernel parameter ``logits_indices_ptr`` is the per-bitmask-row mapping
+# into the logits tensor: ``logits_indices_ptr[i]`` is the logit row that
+# bitmask row ``i`` should be applied to. v1 and v2 build this mapping
+# differently but call the same kernel.
 #
 
 from __future__ import annotations
@@ -80,11 +82,7 @@ def apply_grammar_bitmask(
     input_batch: "InputBatch",
     logits: torch.Tensor,
 ) -> None:
-    """Apply grammar bitmask to ``logits`` in-place on the NPU.
-
-    Same signature as the upstream helper; the body runs the bitmask kernel
-    fully on-device, so the original ``logits.dtype`` is preserved.
-    """
+    """Apply grammar bitmask to ``logits`` in-place on the NPU (v1 entry)."""
     struct_out_req_ids = set(grammar_output.structured_output_request_ids)
     spec_tokens = scheduler_output.scheduled_spec_decode_tokens
 
